@@ -20,7 +20,8 @@ char prompt[1024] = "hello: ";
 
 void sighandler(int signum){
     printf("You typed Control-C!\n");
-
+// signal (sigint,SIG_IGN);
+// signal (sigint,SIG_DFL);
     printf("%s", prompt);
     fflush(stdout);
 }
@@ -30,6 +31,8 @@ void sighandler(int signum){
  * clause 8
  * clause 9
  * we stopped at clause 10 we first need to pipe and then replace the vars in the commands with their values
+ * 
+ * need to verify ^C doesnot kill the father
  * 
  * setenv
  * 
@@ -184,6 +187,14 @@ int main() {
         /* for commands not part of the shell command language */ 
 
         if (fork() == 0) { 
+
+
+            // to vdok
+            signal (SIGINT,SIG_DFL);
+
+
+
+
             /* redirection of IO ? */
             if (redirect == RE_OUT) {
                 fd = creat(outfile, 0660); 
