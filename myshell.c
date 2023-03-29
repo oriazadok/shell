@@ -11,11 +11,6 @@
 #define RE_ERR 2
 #define RE_APPEND 11
 
-typedef struct _var {
-    char name[256];
-    char val[256];
-} Var, *pVar;
-
 char prompt[1024] = "hello: ";
 
 void sighandler(int signum){
@@ -28,7 +23,6 @@ void sighandler(int signum){
 
 /**
  * clause 4
- * clause 8
  * clause 9
  * we stopped at clause 10 we first need to pipe and then replace the vars in the commands with their values
  * 
@@ -46,11 +40,10 @@ int main() {
     int fd, errfd, amper, redirect, piping, retid, status, argc1;
     int fildes[2];
     char *argv1[10], *argv2[10];
-    int size = 10;
-    pVar vars = (pVar)malloc(size * sizeof(pVar));
-    int vars_counter = 0;
 
     signal(SIGINT, sighandler);
+
+    
 
 
     while (1) {
@@ -60,11 +53,10 @@ int main() {
         piping = 0;
 
         /* !! command */ 
-        if(! strcmp(argv1[0], "!!")) {
+        if(! strcmp(command, "!!")) {
             strcpy(command, last_command);
         }
         strcpy(last_command, command);
-
 
         /* parse command line */
         i = 0;
@@ -96,6 +88,8 @@ int main() {
             argv2[i] = NULL;
         }
 
+        
+
         /* change the prompt */ 
         if(! strcmp(argv1[0], "prompt")) {
             strcpy(prompt, argv1[2]);
@@ -110,7 +104,7 @@ int main() {
         } else { 
             amper = 0; 
         }
-
+        
         if (argc1 > 1 && ! strcmp(argv1[argc1 - 2], ">")) {
             redirect = RE_OUT;
             argv1[argc1 - 2] = NULL;
@@ -127,24 +121,23 @@ int main() {
             redirect = 0; 
         }
 
+        
+
         /* echo command */ 
         if(! strcmp(argv1[0], "echo")) {
-
-            if(argv1[1][0] =='$') {
-                for(int v = 0; v < vars_counter; v++) {
-                    if(!strcmp(vars[v].name, argv1[1] + 1)) {
-                        printf("%s\n", vars[v].val);
-                        continue;
-                    }
-                }
-            }
 
             if( ( argv1[1] != NULL ) && (! strcmp(argv1[1], "$?")) ) {
                 printf("%d\n", retid);
                 continue;
             }
             int i = 1;
+            char *env_var;
             while(argv1[i]) {
+                if(argv1[i][0] =='$') {
+                    if( (env_var = getenv(argv1[i] + 1)) ) {
+                        strcpy(argv1[i], env_var);
+                    }
+                }
                 printf("%s ", argv1[i]);
                 i++;
             }
@@ -170,15 +163,7 @@ int main() {
                 continue;
             }
             if(! strcmp(argv1[1], "=")) {
-                pVar new_var = (pVar)malloc(sizeof(Var));
-                strcpy(new_var->name, argv1[0] + 1);
-                strcpy(new_var->val, argv1[2]);
-                if(vars_counter == size) {
-                    size += 10;
-                    vars = realloc(vars, size);
-                }
-                vars[vars_counter] = *new_var;
-                vars_counter++;
+                if ( setenv(argv1[0] + 1, argv1[2], 1));
                 continue;
             }
         }
