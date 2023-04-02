@@ -28,52 +28,68 @@ char prompt[1024] = "hello: ";
  * 
  * need to verify ^C doesnot kill the father
  * 
- * setenv
+ * echo aa > out // check thus out
+ * 
+ * arrow + enter
  * 
  */
 
-int* parser(char* command) {
 
-    int* files = NULL;
+char** parse_pipe(char* command, char* by) {
+    char** coms = NULL;
     int i = 0;
-    char int_str[20];
-    char *token;
 
     /* parse command line */
-    token = strtok(command, "|");           ls | grep f | d | e | t | w | p | m     
+    char* token = strtok(command, by);
     while (token != NULL) {
-
-        sprintf(int_str, "%d", i);
-        printf("Var: %s", int_str);
-        int fd = open(int_str, O_CREAT | O_APPEND | O_RDWR, 0660);
-        write(fd, token, strlen(token) + 1);
-        files = realloc(files, sizeof(int) * (i + 1));
-        files[i++] = fd;
-
-        token = strtok(NULL, "|");
-        printf("tok: %s\n", token);
+        coms = (char**)realloc(coms, (i + 1) * sizeof(char*) );
+        coms[i++] = token;
+        // printf("token: %s\n", token);
+        token = strtok(NULL, by);
     }
-    files = realloc(files, sizeof(int) * (i + 1));
-    files[i] = 0;
+    coms = (char**)realloc(coms, (i + 1) * sizeof(char*));
+    coms[i] = NULL;
 
-    return files;
+    return coms;
 }
-void print_pipes(int* pipes) {
+
+char ***parser(char* command) {
+    char*** coms = NULL;
     int i = 0;
-    char com[1024] = { 0 };
-    char int_str[20];
-    int fd;
+    char by = '|';
+    char** parsed_pipes = parse_pipe(command, &by);
 
-    
-    while( pipes[i] ) {
-
-        sprintf(int_str, "%d", i++);
-        fd = open(int_str, O_RDONLY);
-        size_t size = read(fd, com, 1024);
-        printf("size: %ld, com: %s\n", size, com);
-        memset(com,1 ,1024);
-        close(fd);
+    by = ' ';
+    char** parsed_pipe;
+    while( parsed_pipes[i] ) {
+        // printf("parsed_pipes[i]: %s\n", parsed_pipes[i]);
+        parsed_pipe = parse_pipe(parsed_pipes[i], &by);
+        coms = (char***)realloc(coms, (i + 1) * sizeof(char**) );
+        coms[i++] = parsed_pipe;
     }
+
+    coms = (char***)realloc(coms, (i + 1) * sizeof(char**));
+    coms[i] = NULL;
+
+    return coms;
+}
+
+int print_pipes(char*** coms) {
+
+    printf("the commad issss: \n");
+
+    int i = 0;
+    while( coms[i] ) {
+        int j = 0;
+        while( coms[i][j] ) {
+            printf("wow %s ", coms[i][j]);
+            j++;
+        }
+        i++;
+    }
+
+    printf("\n");
+    return 0;
 }
 
 int main() {
@@ -84,6 +100,8 @@ int main() {
     int fd, errfd, amper, redirect, piping, retid, status, argc1;
     int fildes[2];
     char *argv1[10], *argv2[10];
+    char*** pipes;
+    // char* history;
 
     // signal(SIGINT, sighandler);
 
@@ -93,7 +111,7 @@ int main() {
         command[strlen(command) - 1] = '\0';
         piping = 0;
 
-        int* pipes = parser(command);
+        pipes = parser(command);
         print_pipes(pipes);
 
 
@@ -226,7 +244,7 @@ int main() {
         /* for commands not part of the shell command language */ 
         if (fork() == 0) { 
 
-            // to vdok
+
             // signal (SIGINT,SIG_DFL);
 
             /* redirection of IO ? */
