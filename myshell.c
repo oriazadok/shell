@@ -11,6 +11,16 @@
 #define RE_ERR 2
 #define RE_APPEND 11
 
+
+char command[1024], last_command[1024], myread[1024];
+char *token;
+int i;
+char *outfile;
+int fd, errfd, amper, redirect, piping, retid, status, argc1;
+// int fildes[2];
+char *argv1[10], *argv2[10];
+char*** pipes;
+// char* history;
 char prompt[1024] = "hello: ";
 
 // void sighandler(int signum){
@@ -81,6 +91,7 @@ int print_pipes(char*** coms) {
     int i = 0;
     while( coms[i] ) {
         int j = 0;
+        printf("pip\n");
         while( coms[i][j] ) {
             printf("wow %s ", coms[i][j]);
             j++;
@@ -92,16 +103,79 @@ int print_pipes(char*** coms) {
     return 0;
 }
 
+int exec(char*** pipes) {
+    // signal (SIGINT,SIG_DFL);
+
+    if (fork() == 0) { 
+        /* redirection of IO ? */
+        // if (redirect == RE_OUT) {
+        //     fd = creat(outfile, 0660); 
+        //     close (STDOUT_FILENO) ; 
+        //     dup(fd); 
+        //     close(fd); 
+        //     /* stdout is now redirected */
+        // } else if (redirect == RE_ERR) {
+        //     errfd = creat(outfile, 0660); 
+        //     close (STDERR_FILENO) ; 
+        //     dup(errfd); 
+        //     close(errfd); 
+        //     /* stderr is now redirected */
+        // } else if (redirect == RE_APPEND) {
+        //     fd = open(outfile, O_CREAT | O_APPEND | O_RDWR, 0660); 
+        //     close (STDOUT_FILENO) ; 
+        //     dup(fd); 
+        //     close(fd); 
+        //     /* stdout is now redirected */
+        // } 
+        int pipefd[2];
+
+        int p = 0;
+        pipe(pipefd);
+        
+        while( pipes[p] ) {
+
+            if (fork() == 0) { 
+
+                if( p ) {
+                    close(STDIN_FILENO); 
+                    // dup(pipefd[0]);
+                    dup2(pipefd[0], 0); 
+
+                } else if( pipes[p + 1] ) {
+                    close(STDOUT_FILENO); 
+                    // dup(pipefd[1]); 
+                    dup2(pipefd[1], 1); 
+                }
+
+                close(pipefd[1]); 
+                close(pipefd[0]); 
+                /* stdout now goes to pipe */ 
+                execvp(pipes[p][0], pipes[p]);
+            } else {
+                wait(NULL);
+                p++;
+            }
+            
+        } 
+    } else {
+        wait(NULL);
+    }
+
+    
+                
+    /* parent continues over here... */
+    /* waits for child to exit if required */
+    if (amper == 0) {
+        retid = wait(&status);
+    }
+
+    printf("returning\n");
+
+    return 0;
+}
+
 int main() {
-    char command[1024], last_command[1024], read[1024];
-    char *token;
-    int i;
-    char *outfile;
-    int fd, errfd, amper, redirect, piping, retid, status, argc1;
-    int fildes[2];
-    char *argv1[10], *argv2[10];
-    char*** pipes;
-    // char* history;
+    
 
     // signal(SIGINT, sighandler);
 
@@ -112,7 +186,7 @@ int main() {
         piping = 0;
 
         pipes = parser(command);
-        print_pipes(pipes);
+        // print_pipes(pipes);
 
 
         /* !! command */ 
@@ -160,11 +234,11 @@ int main() {
             continue;
         }
 
-        /* read command */
-        if(!strcmp(argv1[0], "read")) {
+        /* myread command */
+        if(!strcmp(argv1[0], "myread")) {
             if (argv1[1]){
-                fgets(read, 1024, stdin);
-                if (setenv(argv1[1], read, 1));
+                fgets(myread, 1024, stdin);
+                if (setenv(argv1[1], myread, 1));
                 continue;
             }
         }
@@ -241,60 +315,59 @@ int main() {
         }
         
 
+        exec(pipes);
         /* for commands not part of the shell command language */ 
-        if (fork() == 0) { 
+    //     if (fork() == 0) { 
 
 
-            // signal (SIGINT,SIG_DFL);
+    //         // signal (SIGINT,SIG_DFL);
 
-            /* redirection of IO ? */
-            if (redirect == RE_OUT) {
-                fd = creat(outfile, 0660); 
-                close (STDOUT_FILENO) ; 
-                dup(fd); 
-                close(fd); 
-                /* stdout is now redirected */
-            } else if (redirect == RE_ERR) {
-                errfd = creat(outfile, 0660); 
-                close (STDERR_FILENO) ; 
-                dup(errfd); 
-                close(errfd); 
-                /* stderr is now redirected */
-            } else if (redirect == RE_APPEND) {
-                fd = open(outfile, O_CREAT | O_APPEND | O_RDWR, 0660); 
-                close (STDOUT_FILENO) ; 
-                dup(fd); 
-                close(fd); 
-                /* stdout is now redirected */
-            } 
-            if (piping) {
-                pipe (fildes);
-                if (fork() == 0) { 
-                    /* first component of command line */ 
-                    close(STDOUT_FILENO); 
-                    dup(fildes[1]); 
-                    close(fildes[1]); 
-                    close(fildes[0]); 
-                    /* stdout now goes to pipe */ 
-                    /* child process does command */ 
-                    execvp(argv1[0], argv1);
-                } 
-                /* 2nd command component of command line */ 
-                close(STDIN_FILENO);
-                dup(fildes[0]);
-                close(fildes[0]); 
-                close(fildes[1]); 
-                /* standard input now comes from pipe */ 
-                execvp(argv2[0], argv2);
-            } else {
-                execvp(argv1[0], argv1);
-            }
-        }
-        /* parent continues over here... */
-        /* waits for child to exit if required */
-        if (amper == 0) {
-            retid = wait(&status);
-        }
+    //         /* redirection of IO ? */
+    //         if (redirect == RE_OUT) {
+    //             fd = creat(outfile, 0660); 
+    //             close (STDOUT_FILENO) ; 
+    //             dup(fd); 
+    //             close(fd); 
+    //             /* stdout is now redirected */
+    //         } else if (redirect == RE_ERR) {
+    //             errfd = creat(outfile, 0660); 
+    //             close (STDERR_FILENO) ; 
+    //             dup(errfd); 
+    //             close(errfd); 
+    //             /* stderr is now redirected */
+    //         } else if (redirect == RE_APPEND) {
+    //             fd = open(outfile, O_CREAT | O_APPEND | O_RDWR, 0660); 
+    //             close (STDOUT_FILENO) ; 
+    //             dup(fd); 
+    //             close(fd); 
+    //             /* stdout is now redirected */
+    //         } 
+
+    //         int pipefd[2];
+    //         pipe(pipefd);
+    //         int p = 0;
+    //         if ( pipes[p] ) {
+    //             pipe (fildes);
+    //             if (fork() == 0) { 
+    //                 /* first component of command line */ 
+    //                 close(STDOUT_FILENO); 
+    //                 dup(pipefd[1]); 
+    //                 close(pipefd[1]); 
+    //                 close(pipefd[0]); 
+    //                 /* stdout now goes to pipe */ 
+    //                 /* child process does command */ 
+    //                 execvp(pipes[p][0], pipes[p]);
+    //             } 
+
+    //             p++;
+    //         } 
+            
+    //     }
+    //     /* parent continues over here... */
+    //     /* waits for child to exit if required */
+    //     if (amper == 0) {
+    //         retid = wait(&status);
+    //     }
     }
 
     return 0;
