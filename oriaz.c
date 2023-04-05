@@ -62,6 +62,18 @@ int exec(char*** pipes, int num_of_pipes) {
 
     if (fork() == 0) { 
 
+        
+
+        if(num_of_pipes == 1) {
+            if (fork() == 0) { 
+                execvp(pipes[0][0], pipes[0]);
+                perror("execvp failed");
+                exit(EXIT_FAILURE);
+            } else {
+                wait(&status);
+            }
+            return 0;
+        }
         int pipefd[num_of_pipes][2];
 
         for (int i = 0; i < num_of_pipes; i++) {
@@ -69,16 +81,27 @@ int exec(char*** pipes, int num_of_pipes) {
         }
 
         for (int p = 0; p < num_of_pipes; p++) {
-            if (fork() == 0) { /* child process */
+            if (fork() == 0) { 
                 if (p == 0) { /* first command in pipeline */
+                    printf("p == 0\n");
                     close(STDOUT_FILENO); /* close stdout */
                     dup2(pipefd[p][1], STDOUT_FILENO); /* redirect stdout to write end of first pipe */
                     close(pipefd[p][0]); /* close read end of first pipe */
-                } else if (pipes[p+1] == NULL) { /* last command in pipeline */
+                } 
+                if (pipes[p+1] == NULL) { /* last command in pipeline */
+                    FILE* fp = fopen("out", "w");
+                    fwrite("pipes[p+1] == NULL\n", 1, 20, fp);
+                    fclose(fp);
                     close(STDIN_FILENO); /* close stdin */
                     dup2(pipefd[p-1][0], STDIN_FILENO); /* redirect stdin to read end of previous pipe */
                     close(pipefd[p-1][1]); /* close write end of previous pipe */
+                    fp = fopen("out", "w");
+                    fwrite("pipes[p+1] == NULL\n", 1, 20, fp);
+                    fclose(fp);
                 } else { /* middle command in pipeline */
+                    FILE* fp = fopen("out", "w");
+                    fwrite("else\n", 1, 6, fp);
+                    fclose(fp);
                     close(STDIN_FILENO); /* close stdin */
                     dup2(pipefd[p-1][0], STDIN_FILENO); /* redirect stdin to read end of previous pipe */
                     close(pipefd[p-1][1]); /* close write end of previous pipe */
@@ -204,7 +227,7 @@ int control_flow() {
     pipes = parser(cond_commands[0], &num_of_pipes);
     exec(pipes, num_of_pipes);
 
-    printf("status: %d\n", status);
+    // printf("status: %d\n", status);
     if( ! status ) {
         for(int i = 0; i < tc; i++) {
             num_of_pipes = 0;
@@ -252,6 +275,7 @@ int main() {
             pipes = parser(command, &num_of_pipes);
 
             exec(pipes, num_of_pipes);
+            printf("ssss: %d\n", status);
             free_pipes(pipes);
         }
     }
