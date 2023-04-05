@@ -7,13 +7,13 @@
 #include <sys/wait.h>
 #include <errno.h>
 
+#include "myshell.h"
 
 
 char prompt[1024] = "hello: ";
 int status;
 
-
-char** parse_pipe(char* command, char* by, int* n) {
+char** parse_pipe(char* command, char* by, int* n) { 
     char** coms = NULL;
     // *n = 0;
     int i = 0;
@@ -21,14 +21,18 @@ char** parse_pipe(char* command, char* by, int* n) {
     /* parse command line */
     char* token = strtok(command, by);
     while (token != NULL) {
+        
         coms = (char**)realloc(coms, (i + 1) * sizeof(char*) );
-        coms[i++] = token;
+        coms[i] = token;
+        i++;
         token = strtok(NULL, by);
 
         if( n ) {
             (*n)++;
+            // printf("iiii: %d\n", i);
         }
     }
+    printf("allopip: %ld\n", (i + 1) * sizeof(char*));
     coms = (char**)realloc(coms, (i + 1) * sizeof(char*));
     coms[i] = NULL;
 
@@ -50,10 +54,13 @@ char ***parser(char* command, int* num_of_pipes) {
         parsed_pipe = parse_pipe(parsed_pipes[i], &by, NULL);
         coms = (char***)realloc(coms, (i + 1) * sizeof(char**) );
         coms[i++] = parsed_pipe;
+        printf("looping\n");
     }
-
+    printf("allopipayuuyuyu: %ld\n", (i + 1) * sizeof(char**));
     coms = (char***)realloc(coms, (i + 1) * sizeof(char**));
     coms[i] = NULL;
+
+    free(parsed_pipes);
 
     return coms;
 }
@@ -62,8 +69,6 @@ int exec(char*** pipes, int num_of_pipes) {
 
     if (fork() == 0) { 
 
-        
-
         if(num_of_pipes == 1) {
             if (fork() == 0) { 
                 execvp(pipes[0][0], pipes[0]);
@@ -71,9 +76,12 @@ int exec(char*** pipes, int num_of_pipes) {
                 exit(EXIT_FAILURE);
             } else {
                 wait(&status);
+                exit(0);
             }
-            return 0;
+            // return 0;
         }
+
+        printf("nop: %d\n", num_of_pipes);
         int pipefd[num_of_pipes][2];
 
         for (int i = 0; i < num_of_pipes; i++) {
@@ -83,25 +91,14 @@ int exec(char*** pipes, int num_of_pipes) {
         for (int p = 0; p < num_of_pipes; p++) {
             if (fork() == 0) { 
                 if (p == 0) { /* first command in pipeline */
-                    printf("p == 0\n");
                     close(STDOUT_FILENO); /* close stdout */
                     dup2(pipefd[p][1], STDOUT_FILENO); /* redirect stdout to write end of first pipe */
                     close(pipefd[p][0]); /* close read end of first pipe */
-                } 
-                if (pipes[p+1] == NULL) { /* last command in pipeline */
-                    FILE* fp = fopen("out", "w");
-                    fwrite("pipes[p+1] == NULL\n", 1, 20, fp);
-                    fclose(fp);
+                } else if (pipes[p+1] == NULL) { /* last command in pipeline */
                     close(STDIN_FILENO); /* close stdin */
                     dup2(pipefd[p-1][0], STDIN_FILENO); /* redirect stdin to read end of previous pipe */
                     close(pipefd[p-1][1]); /* close write end of previous pipe */
-                    fp = fopen("out", "w");
-                    fwrite("pipes[p+1] == NULL\n", 1, 20, fp);
-                    fclose(fp);
                 } else { /* middle command in pipeline */
-                    FILE* fp = fopen("out", "w");
-                    fwrite("else\n", 1, 6, fp);
-                    fclose(fp);
                     close(STDIN_FILENO); /* close stdin */
                     dup2(pipefd[p-1][0], STDIN_FILENO); /* redirect stdin to read end of previous pipe */
                     close(pipefd[p-1][1]); /* close write end of previous pipe */
@@ -131,6 +128,7 @@ int exec(char*** pipes, int num_of_pipes) {
         for (int k = 0; k < num_of_pipes; k++) {
             wait(&status); /* wait for child processes to exit */
         }
+        exit(0);
     } else {
         wait(NULL);
         
@@ -142,7 +140,7 @@ int exec(char*** pipes, int num_of_pipes) {
 }
 
 int control_flow() {
-
+    printf("inside control flow\n");
     /* input of the control flow */
     int cc = 0, tc = 0;
     int ec = 0;
@@ -226,6 +224,8 @@ int control_flow() {
     int num_of_pipes = 0;
     pipes = parser(cond_commands[0], &num_of_pipes);
     exec(pipes, num_of_pipes);
+    free_pipes(pipes);
+    free(pipes);
 
     // printf("status: %d\n", status);
     if( ! status ) {
@@ -233,6 +233,8 @@ int control_flow() {
             num_of_pipes = 0;
             pipes = parser(then_commands[0], &num_of_pipes);
             exec(pipes, num_of_pipes);
+            free_pipes(pipes);
+            free(pipes);
         }
 
     } else {
@@ -242,20 +244,48 @@ int control_flow() {
             num_of_pipes = 0;
             pipes = parser(else_commands[i], &num_of_pipes);
             exec(pipes, num_of_pipes);
+            free_pipes(pipes);
+            free(pipes);
         }
 
     }
+
+    free_cte(cond_commands);
+    free_cte(then_commands);
+    free_cte(else_commands);
+
+    free(cond_commands);
+    free(then_commands);
+    free(else_commands);
     
 
     return 0;
 }
 
+int free_cte(char** pipes) {
 
-/* free the piped command */
-int free_pipes(char*** pipes) {
+    int i = 0;
+    while( pipes[i] ) {
+        free( pipes[i] );
+        i++;
+    }
+    free( pipes[i] );
+
     return 0;
 }
 
+/* free the piped command */
+int free_pipes(char*** pipes) {
+
+    int i = 0;
+    while( pipes[i] ) {
+        free( pipes[i] );
+        i++;
+    }
+    free( pipes[i] );
+
+    return 0;
+}
 
 
 int main() {
@@ -268,17 +298,28 @@ int main() {
         fgets(command, 1024, stdin);
         command[strlen(command) - 1] = '\0';
 
+        /* quit command */ 
+        if(! strncmp(command, "quit", 4)) {
+            break;
+        }
+
+
         if( ! strncmp(command, "if", 2) ) {
+            printf("control flow\n");
             control_flow();
         } else {
+            printf("else\n");
             int num_of_pipes = 0;
             pipes = parser(command, &num_of_pipes);
 
             exec(pipes, num_of_pipes);
-            printf("ssss: %d\n", status);
+            // printf("ssss: %d\n", status);
             free_pipes(pipes);
+            free(pipes);
         }
     }
-
     return 0;
 }
+
+
+
