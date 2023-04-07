@@ -9,9 +9,97 @@
 
 #include "myshell.h"
 
+#define UP_ARROW_KEY "\033[A"
+#define DOWN_ARROW_KEY "\033[B"
+#define LINE_UP "\033[1A"
+#define DELETE_LINE "\x1b[2K"
+#define EMPTY_STRING ""
+
+#define HISTORY_SIZE 20
 
 char prompt[1024] = "hello: ";
 int status;
+
+
+typedef struct _History {
+    char history[HISTORY_SIZE][1024];
+    int history_counter;
+} History;
+
+int history_init(History* h) {
+    h->history_counter = 0;
+    return 0;
+}
+
+int print_hc(char* str1, char* str2) {
+    printf(LINE_UP);
+    printf(DELETE_LINE);
+    printf("%s%s", str1, str2);
+    fflush(stdout);
+    return 0;
+}
+
+int history_add(History* h, char* cmd) {
+    if (h->history_counter < HISTORY_SIZE) {
+        strcpy(h->history[h->history_counter], cmd);
+        h->history_counter++;
+    } else {
+        for (int j = 0; j < HISTORY_SIZE - 1; j++) {
+            strcpy(h->history[j], h->history[j + 1]);
+        }
+        strcpy(h->history[HISTORY_SIZE - 1], cmd);
+    }
+
+    return 0;
+}
+
+int handle_arrows(History* h, char* cmd) {
+
+    int history_counter = h->history_counter;
+    int history_pos = 0;
+
+    char temp[1024];
+    strcpy(temp, cmd);
+
+    while (1) {
+
+        if ( ! strcmp(cmd, UP_ARROW_KEY) ) {
+            if (history_counter > 0) {
+                if( history_pos <= history_counter) {
+                    history_pos++;
+                    strncpy(temp, h->history[(history_counter - history_pos) % HISTORY_SIZE], 1024);
+                    print_hc(prompt, temp);
+                } else {
+                    print_hc(prompt, "No More Previous Commands\n");
+                }
+            } else {
+                print_hc(prompt, "There Are No Previous Commands\n");
+                break;
+            }
+        } else if ( ! strcmp(cmd, DOWN_ARROW_KEY) ) {
+            if (h->history[(history_counter - history_pos -1) % HISTORY_SIZE] != NULL) {
+                history_pos--;
+                strncpy(temp, h->history[(history_counter - history_pos) % HISTORY_SIZE], 1024);
+                print_hc(prompt, temp);
+            }
+        } 
+
+        fgets(cmd, 1024, stdin);
+        cmd[strlen(cmd) - 1] = '\0';
+
+        if (strcmp(cmd, "") == 0) {
+            strncpy(cmd, temp, 1024);
+            break;
+        }
+    }
+
+    return 0;
+}
+
+
+// int history_p(History* h, );
+
+
 
 char** parse_pipe(char* command, char* by, int* n) { 
     char** coms = NULL;
@@ -29,10 +117,8 @@ char** parse_pipe(char* command, char* by, int* n) {
 
         if( n ) {
             (*n)++;
-            // printf("iiii: %d\n", i);
         }
     }
-    printf("allopip: %ld\n", (i + 1) * sizeof(char*));
     coms = (char**)realloc(coms, (i + 1) * sizeof(char*));
     coms[i] = NULL;
 
@@ -50,13 +136,10 @@ char ***parser(char* command, int* num_of_pipes) {
     by = ' ';
     char** parsed_pipe;
     while( parsed_pipes[i] ) {
-        // printf("parsed_pipes[i]: %s\n", parsed_pipes[i]);
         parsed_pipe = parse_pipe(parsed_pipes[i], &by, NULL);
         coms = (char***)realloc(coms, (i + 1) * sizeof(char**) );
         coms[i++] = parsed_pipe;
-        printf("looping\n");
     }
-    printf("allopipayuuyuyu: %ld\n", (i + 1) * sizeof(char**));
     coms = (char***)realloc(coms, (i + 1) * sizeof(char**));
     coms[i] = NULL;
 
@@ -81,7 +164,6 @@ int exec(char*** pipes, int num_of_pipes) {
             // return 0;
         }
 
-        printf("nop: %d\n", num_of_pipes);
         int pipefd[num_of_pipes][2];
 
         for (int i = 0; i < num_of_pipes; i++) {
@@ -139,129 +221,7 @@ int exec(char*** pipes, int num_of_pipes) {
     return 0;
 }
 
-int control_flow() {
-    printf("inside control flow\n");
-    /* input of the control flow */
-    int cc = 0, tc = 0;
-    int ec = 0;
-    char** cond_commands = NULL; //(char**)malloc(sizeof(char*));
-    char** then_commands = NULL; //(char**)malloc(sizeof(char*));
-    char** else_commands = NULL; //(char**)malloc(sizeof(char*));
-
-    printf("> ");
-    fflush(stdout);
-    char condition[1024];
-    fgets(condition, 1024, stdin);
-    condition[strlen(condition) - 1] = '\0';
-    int is_then = strcmp(condition, "then");
-
-    if( ! is_then ) { exit(2); }
-
-    while( is_then ) {
-        cond_commands = (char**)realloc(cond_commands, (cc + 1) * sizeof(char*));
-        char* cond = (char*)malloc(strlen(condition));
-        strcpy(cond, condition);
-        cond_commands[cc] = cond;
-        cc++;
-
-        printf("> ");
-        fflush(stdout);
-        fgets(condition, 1024, stdin);
-        condition[strlen(condition) - 1] = '\0';
-        is_then = strcmp(condition, "then");
-    }
-
-    printf("> ");
-    fflush(stdout);
-    char cmd[1024];
-    fgets(cmd, 1024, stdin);
-    cmd[strlen(cmd) - 1] = '\0';
-    int is_else = strcmp(cmd, "else");
-
-    if( ! is_else ) { exit(2); }
-
-    while( is_else ) {
-        then_commands = (char**)realloc(then_commands, (tc + 1) * sizeof(char*));
-        char* then = (char*)malloc(strlen(cmd));
-        strcpy(then, cmd);
-        then_commands[tc] = then;
-        tc++;
-
-        printf("> ");
-        fflush(stdout);
-        fgets(cmd, 1024, stdin);
-        cmd[strlen(cmd) - 1] = '\0';
-        is_else = strcmp(cmd, "else");
-    }
-
-    printf("> ");
-    fflush(stdout);
-    char cmd2[1024];
-    fgets(cmd2, 1024, stdin);
-    cmd2[strlen(cmd2) - 1] = '\0';
-    int is_fi = strcmp(cmd2, "fi");
-
-    if( ! is_fi ) { exit(2); }
-
-    while( is_fi ) {
-        else_commands = (char**)realloc(else_commands, (ec + 1) * sizeof(char*));
-        char* _else = (char*)malloc(strlen(cmd2));
-        strcpy(_else, cmd2);
-        else_commands[ec] = _else;
-        ec++;
-
-        printf("> ");
-        fflush(stdout);
-        fgets(cmd2, 1024, stdin);
-        cmd2[strlen(cmd2) - 1] = '\0';
-        is_fi = strcmp(cmd2, "fi");
-    }
-
-
-    /* execute of the control flow */
-    char*** pipes;
-
-    int num_of_pipes = 0;
-    pipes = parser(cond_commands[0], &num_of_pipes);
-    exec(pipes, num_of_pipes);
-    free_pipes(pipes);
-    free(pipes);
-
-    // printf("status: %d\n", status);
-    if( ! status ) {
-        for(int i = 0; i < tc; i++) {
-            num_of_pipes = 0;
-            pipes = parser(then_commands[0], &num_of_pipes);
-            exec(pipes, num_of_pipes);
-            free_pipes(pipes);
-            free(pipes);
-        }
-
-    } else {
-
-        for(int i = 0; i < ec; i++) {
-            
-            num_of_pipes = 0;
-            pipes = parser(else_commands[i], &num_of_pipes);
-            exec(pipes, num_of_pipes);
-            free_pipes(pipes);
-            free(pipes);
-        }
-
-    }
-
-    free_cte(cond_commands);
-    free_cte(then_commands);
-    free_cte(else_commands);
-
-    free(cond_commands);
-    free(then_commands);
-    free(else_commands);
-    
-
-    return 0;
-}
-
+/* free the Command Then Else commands */
 int free_cte(char** pipes) {
 
     int i = 0;
@@ -270,6 +230,132 @@ int free_cte(char** pipes) {
         i++;
     }
     free( pipes[i] );
+
+    return 0;
+}
+
+int control_flow() {
+
+    if( fork() == 0 ) {
+        /* input of the control flow */
+        int cc = 0, tc = 0;
+        int ec = 0;
+        char** cond_commands = NULL; //(char**)malloc(sizeof(char*));
+        char** then_commands = NULL; //(char**)malloc(sizeof(char*));
+        char** else_commands = NULL; //(char**)malloc(sizeof(char*));
+
+        printf("> ");
+        fflush(stdout);
+        char condition[1024];
+        fgets(condition, 1024, stdin);
+        condition[strlen(condition) - 1] = '\0';
+        int is_then = strcmp(condition, "then");
+
+        if( ! is_then ) { exit(2); }
+
+        while( is_then ) {
+            cond_commands = (char**)realloc(cond_commands, (cc + 1) * sizeof(char*));
+            char* cond = (char*)malloc(strlen(condition));
+            strcpy(cond, condition);
+            cond_commands[cc] = cond;
+            cc++;
+
+            printf("> ");
+            fflush(stdout);
+            fgets(condition, 1024, stdin);
+            condition[strlen(condition) - 1] = '\0';
+            is_then = strcmp(condition, "then");
+        }
+
+        printf("> ");
+        fflush(stdout);
+        char cmd[1024];
+        fgets(cmd, 1024, stdin);
+        cmd[strlen(cmd) - 1] = '\0';
+        int is_else = strcmp(cmd, "else");
+
+        if( ! is_else ) { exit(2); }
+
+        while( is_else ) {
+            then_commands = (char**)realloc(then_commands, (tc + 1) * sizeof(char*));
+            char* then = (char*)malloc(strlen(cmd));
+            strcpy(then, cmd);
+            then_commands[tc] = then;
+            tc++;
+
+            printf("> ");
+            fflush(stdout);
+            fgets(cmd, 1024, stdin);
+            cmd[strlen(cmd) - 1] = '\0';
+            is_else = strcmp(cmd, "else");
+        }
+
+        printf("> ");
+        fflush(stdout);
+        char cmd2[1024];
+        fgets(cmd2, 1024, stdin);
+        cmd2[strlen(cmd2) - 1] = '\0';
+        int is_fi = strcmp(cmd2, "fi");
+
+        if( ! is_fi ) { exit(2); }
+
+        while( is_fi ) {
+            else_commands = (char**)realloc(else_commands, (ec + 1) * sizeof(char*));
+            char* _else = (char*)malloc(strlen(cmd2));
+            strcpy(_else, cmd2);
+            else_commands[ec] = _else;
+            ec++;
+
+            printf("> ");
+            fflush(stdout);
+            fgets(cmd2, 1024, stdin);
+            cmd2[strlen(cmd2) - 1] = '\0';
+            is_fi = strcmp(cmd2, "fi");
+        }
+
+
+        /* execute of the control flow */
+        char*** pipes;
+
+        int num_of_pipes = 0;
+        pipes = parser(cond_commands[0], &num_of_pipes);
+        exec(pipes, num_of_pipes);
+        free_pipes(pipes);
+        free(pipes);
+
+        // printf("status: %d\n", status);
+        if( ! status ) {
+            for(int i = 0; i < tc; i++) {
+                num_of_pipes = 0;
+                pipes = parser(then_commands[0], &num_of_pipes);
+                exec(pipes, num_of_pipes);
+                free_pipes(pipes);
+                free(pipes);
+            }
+
+        } else {
+
+            for(int i = 0; i < ec; i++) {
+                
+                num_of_pipes = 0;
+                pipes = parser(else_commands[i], &num_of_pipes);
+                exec(pipes, num_of_pipes);
+                free_pipes(pipes);
+                free(pipes);
+            }
+
+        }
+
+        free_cte(cond_commands);
+        free_cte(then_commands);
+        free_cte(else_commands);
+
+        free(cond_commands);
+        free(then_commands);
+        free(else_commands);
+    } else {
+        wait(&status);
+    }
 
     return 0;
 }
@@ -287,28 +373,42 @@ int free_pipes(char*** pipes) {
     return 0;
 }
 
-
 int main() {
 
-    char command[1024];
+
+    char command[1024]; // temp[1024] = "";
     char*** pipes;
+    History history;
+    history_init(&history);
 
     while (1) {
         printf("%s", prompt);
         fgets(command, 1024, stdin);
         command[strlen(command) - 1] = '\0';
 
-        /* quit command */ 
-        if(! strncmp(command, "quit", 4)) {
-            break;
+        if ( ! strcmp(command, DOWN_ARROW_KEY) ) {
+            printf(LINE_UP);
+            printf(DELETE_LINE);
+            continue;
         }
 
+        if ( ! strcmp(command, UP_ARROW_KEY) ) {
+            handle_arrows(&history, command);
+        }
 
+        /* empty command */
+        if( ! strcmp(command, EMPTY_STRING) ) { continue; }
+
+        /* add command to history */
+        history_add(&history, command);
+
+        /* quit command */ 
+        if(! strncmp(command, "quit", 4)) { break; }
+
+        /* handle control flow */
         if( ! strncmp(command, "if", 2) ) {
-            printf("control flow\n");
             control_flow();
         } else {
-            printf("else\n");
             int num_of_pipes = 0;
             pipes = parser(command, &num_of_pipes);
 
@@ -318,8 +418,7 @@ int main() {
             free(pipes);
         }
     }
+
     return 0;
 }
-
-
 
