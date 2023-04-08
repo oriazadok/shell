@@ -39,6 +39,7 @@ int print_hc(char* str1, char* str2) {
     return 0;
 }
 
+//change point
 int history_add(History* h, char* cmd) {
     if (h->history_counter < HISTORY_SIZE) {
         strcpy(h->history[h->history_counter], cmd);
@@ -56,7 +57,13 @@ int history_add(History* h, char* cmd) {
 int handle_arrows(History* h, char* cmd) {
 
     int history_counter = h->history_counter;
-    int history_pos = 0;
+    int history_pos = history_counter - 1;
+    int b = 1;
+
+    if (history_counter == 0 ) {
+        print_hc(prompt, "There Are No Previous Commands\n");
+        return 1;
+    }
 
     char temp[1024];
     strcpy(temp, cmd);
@@ -64,23 +71,29 @@ int handle_arrows(History* h, char* cmd) {
     while (1) {
 
         if ( ! strcmp(cmd, UP_ARROW_KEY) ) {
-            if (history_counter > 0) {
-                if( history_pos <= history_counter) {
-                    history_pos++;
-                    strncpy(temp, h->history[(history_counter - history_pos) % HISTORY_SIZE], 1024);
-                    print_hc(prompt, temp);
-                } else {
-                    print_hc(prompt, "No More Previous Commands\n");
-                }
-            } else {
-                print_hc(prompt, "There Are No Previous Commands\n");
-                break;
-            }
-        } else if ( ! strcmp(cmd, DOWN_ARROW_KEY) ) {
-            if (h->history[(history_counter - history_pos -1) % HISTORY_SIZE] != NULL) {
+            if( b == -1 ) { history_pos--; }
+            b = 1;
+           
+            if( history_pos >= 0) {
+                strncpy(temp, h->history[ history_pos ], 1024);
                 history_pos--;
-                strncpy(temp, h->history[(history_counter - history_pos) % HISTORY_SIZE], 1024);
                 print_hc(prompt, temp);
+            } else {
+                print_hc(prompt, temp);
+            }
+           
+           
+        } else if ( ! strcmp(cmd, DOWN_ARROW_KEY) ) {
+            if( b == 1 ) { history_pos++; }
+            b = -1;
+           
+            if (history_pos < history_counter - 1) {
+                history_pos++;
+                strncpy(temp, h->history[ history_pos ], 1024);
+                print_hc(prompt, temp);
+            } else {
+                print_hc("", "");
+                return 1;
             }
         } 
 
@@ -97,7 +110,15 @@ int handle_arrows(History* h, char* cmd) {
 }
 
 
-// int history_p(History* h, );
+int history_p(History* h) {
+    printf("history: \n");
+    for(int i = 0; i < h->history_counter; i++) {
+        printf("%d. %s\n", i, h->history[i]);
+    }
+    printf("end of history\n");
+
+    return 0;
+}
 
 
 
@@ -386,14 +407,18 @@ int main() {
         fgets(command, 1024, stdin);
         command[strlen(command) - 1] = '\0';
 
+        /* handle down arrow key */
         if ( ! strcmp(command, DOWN_ARROW_KEY) ) {
             printf(LINE_UP);
             printf(DELETE_LINE);
             continue;
         }
 
+        /* handle up arrow key */
         if ( ! strcmp(command, UP_ARROW_KEY) ) {
-            handle_arrows(&history, command);
+            if ( handle_arrows(&history, command) ) {
+                continue;
+            }
         }
 
         /* empty command */
@@ -402,6 +427,7 @@ int main() {
         /* add command to history */
         history_add(&history, command);
 
+        
         /* quit command */ 
         if(! strncmp(command, "quit", 4)) { break; }
 
