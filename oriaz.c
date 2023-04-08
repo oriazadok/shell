@@ -7,6 +7,7 @@
 #include <sys/wait.h>
 #include <errno.h>
 
+#include "history.h"
 #include "myshell.h"
 
 #define UP_ARROW_KEY "\033[A"
@@ -15,22 +16,10 @@
 #define DELETE_LINE "\x1b[2K"
 #define EMPTY_STRING ""
 
-#define HISTORY_SIZE 20
-
 char prompt[1024] = "hello: ";
 int status;
 
-
-typedef struct _History {
-    char history[HISTORY_SIZE][1024];
-    int history_counter;
-} History;
-
-int history_init(History* h) {
-    h->history_counter = 0;
-    return 0;
-}
-
+/* help handle_arrows print properly */
 int print_hc(char* str1, char* str2) {
     printf(LINE_UP);
     printf(DELETE_LINE);
@@ -39,31 +28,17 @@ int print_hc(char* str1, char* str2) {
     return 0;
 }
 
-//change point
-int history_add(History* h, char* cmd) {
-    if (h->history_counter < HISTORY_SIZE) {
-        strcpy(h->history[h->history_counter], cmd);
-        h->history_counter++;
-    } else {
-        for (int j = 0; j < HISTORY_SIZE - 1; j++) {
-            strcpy(h->history[j], h->history[j + 1]);
-        }
-        strcpy(h->history[HISTORY_SIZE - 1], cmd);
-    }
-
-    return 0;
-}
-
+/* handle the arrows keys */
 int handle_arrows(History* h, char* cmd) {
+
+    if (h->history_counter == 0 ) {
+        print_hc(prompt, "There Are No Previous Commands\n");
+        return 1;
+    }
 
     int history_counter = h->history_counter;
     int history_pos = history_counter - 1;
     int b = 1;
-
-    if (history_counter == 0 ) {
-        print_hc(prompt, "There Are No Previous Commands\n");
-        return 1;
-    }
 
     char temp[1024];
     strcpy(temp, cmd);
@@ -81,7 +56,6 @@ int handle_arrows(History* h, char* cmd) {
             } else {
                 print_hc(prompt, temp);
             }
-           
            
         } else if ( ! strcmp(cmd, DOWN_ARROW_KEY) ) {
             if( b == 1 ) { history_pos++; }
@@ -109,19 +83,7 @@ int handle_arrows(History* h, char* cmd) {
     return 0;
 }
 
-
-int history_p(History* h) {
-    printf("history: \n");
-    for(int i = 0; i < h->history_counter; i++) {
-        printf("%d. %s\n", i, h->history[i]);
-    }
-    printf("end of history\n");
-
-    return 0;
-}
-
-
-
+/* parsing the command according to by param to an arrays of string */
 char** parse_pipe(char* command, char* by, int* n) { 
     char** coms = NULL;
     // *n = 0;
@@ -146,6 +108,7 @@ char** parse_pipe(char* command, char* by, int* n) {
     return coms;
 }
 
+/* parsing the command into an array of arrays of strings */
 char ***parser(char* command, int* num_of_pipes) {
 
     char*** coms = NULL;
@@ -169,6 +132,7 @@ char ***parser(char* command, int* num_of_pipes) {
     return coms;
 }
 
+/* execute the parsed command */
 int exec(char*** pipes, int num_of_pipes) {
 
     if (fork() == 0) { 
@@ -255,6 +219,7 @@ int free_cte(char** pipes) {
     return 0;
 }
 
+/* handle the control flow (if else) */
 int control_flow() {
 
     if( fork() == 0 ) {
@@ -397,7 +362,7 @@ int free_pipes(char*** pipes) {
 int main() {
 
 
-    char command[1024]; // temp[1024] = "";
+    char command[1024];
     char*** pipes;
     History history;
     history_init(&history);
