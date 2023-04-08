@@ -140,13 +140,10 @@ int exec(char*** pipes, int num_of_pipes) {
         if(num_of_pipes == 1) {
             if (fork() == 0) { 
                 execvp(pipes[0][0], pipes[0]);
-                perror("execvp failed");
-                exit(EXIT_FAILURE);
             } else {
                 wait(&status);
-                exit(0);
+                return status;
             }
-            // return 0;
         }
 
         int pipefd[num_of_pipes][2];
@@ -195,19 +192,17 @@ int exec(char*** pipes, int num_of_pipes) {
         for (int k = 0; k < num_of_pipes; k++) {
             wait(&status); /* wait for child processes to exit */
         }
-        exit(0);
+        return status;
     } else {
-        wait(NULL);
-        
+        wait(&status);
+        printf("I got sts: %d\n", status);
     }
 
-    
-
-    return 0;
+    return status;
 }
 
 /* free the Command Then Else commands */
-int free_cte(char** pipes) {
+void free_cte(char** pipes) {
 
     int i = 0;
     while( pipes[i] ) {
@@ -215,8 +210,6 @@ int free_cte(char** pipes) {
         i++;
     }
     free( pipes[i] );
-
-    return 0;
 }
 
 /* handle the control flow (if else) */
@@ -226,18 +219,20 @@ int control_flow() {
         /* input of the control flow */
         int cc = 0, tc = 0;
         int ec = 0;
-        char** cond_commands = NULL; //(char**)malloc(sizeof(char*));
-        char** then_commands = NULL; //(char**)malloc(sizeof(char*));
-        char** else_commands = NULL; //(char**)malloc(sizeof(char*));
+        char** cond_commands = NULL;
+        char** then_commands = NULL;
+        char** else_commands = NULL;
 
         printf("> ");
         fflush(stdout);
         char condition[1024];
         fgets(condition, 1024, stdin);
         condition[strlen(condition) - 1] = '\0';
+        if( (! strcmp(condition, "then")) || (! strcmp(condition, "else")) || (! strcmp(condition, "fi")) ) {
+            printf("bash: syntax error near unexpected token `%s'\n", condition);
+            exit(0);
+        }
         int is_then = strcmp(condition, "then");
-
-        if( ! is_then ) { exit(2); }
 
         while( is_then ) {
             cond_commands = (char**)realloc(cond_commands, (cc + 1) * sizeof(char*));
@@ -250,6 +245,10 @@ int control_flow() {
             fflush(stdout);
             fgets(condition, 1024, stdin);
             condition[strlen(condition) - 1] = '\0';
+            if( (! strcmp(condition, "else")) || (! strcmp(condition, "fi")) ) {
+                printf("bash: syntax error near unexpected token `%s'\n", condition);
+                exit(0);
+            }
             is_then = strcmp(condition, "then");
         }
 
@@ -258,9 +257,11 @@ int control_flow() {
         char cmd[1024];
         fgets(cmd, 1024, stdin);
         cmd[strlen(cmd) - 1] = '\0';
+        if( (! strcmp(cmd, "else")) || (! strcmp(cmd, "fi")) ) {
+            printf("bash: syntax error near unexpected token `%s'\n", cmd);
+            exit(0);
+        }
         int is_else = strcmp(cmd, "else");
-
-        if( ! is_else ) { exit(2); }
 
         while( is_else ) {
             then_commands = (char**)realloc(then_commands, (tc + 1) * sizeof(char*));
@@ -283,7 +284,10 @@ int control_flow() {
         cmd2[strlen(cmd2) - 1] = '\0';
         int is_fi = strcmp(cmd2, "fi");
 
-        if( ! is_fi ) { exit(2); }
+        if( ! is_fi ) { 
+            printf("bash: syntax error near unexpected token `%s'\n", cmd2);
+            exit(2); 
+        }
 
         while( is_fi ) {
             else_commands = (char**)realloc(else_commands, (ec + 1) * sizeof(char*));
@@ -306,6 +310,7 @@ int control_flow() {
         int num_of_pipes = 0;
         pipes = parser(cond_commands[0], &num_of_pipes);
         exec(pipes, num_of_pipes);
+        // printf("status: %d\n", status);
         free_pipes(pipes);
         free(pipes);
 
@@ -347,7 +352,7 @@ int control_flow() {
 }
 
 /* free the piped command */
-int free_pipes(char*** pipes) {
+void free_pipes(char*** pipes) {
 
     int i = 0;
     while( pipes[i] ) {
@@ -355,8 +360,6 @@ int free_pipes(char*** pipes) {
         i++;
     }
     free( pipes[i] );
-
-    return 0;
 }
 
 int main() {
