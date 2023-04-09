@@ -19,6 +19,12 @@
 char prompt[1024] = "hello: ";
 int status;
 
+/*
+1. fix bug of quit in case of control flow and ordinary pipes
+    by understanding the diff between return exit and _exit
+2. fill the rest of the assignment 
+*/
+
 /* help handle_arrows print properly */
 int print_hc(char* str1, char* str2) {
     printf(LINE_UP);
@@ -135,66 +141,87 @@ char ***parser(char* command, int* num_of_pipes) {
 /* execute the parsed command */
 int exec(char*** pipes, int num_of_pipes) {
 
+    int piping[2];
+    pipe(piping);
+
+    char buffer[10];
+
     if (fork() == 0) { 
+
+        char status_str[20];
 
         if(num_of_pipes == 1) {
             if (fork() == 0) { 
                 execvp(pipes[0][0], pipes[0]);
             } else {
                 wait(&status);
-                return status;
+                printf("internal fork exit with: %d\n", status);
+
+                // char status_str[20];
+                // sprintf(status_str, "%d", status);
+                // write(piping[1], status_str, sizeof(status_str));
+                // exit(status);
+            }
+        } else {
+
+            int pipefd[num_of_pipes][2];
+
+            for (int i = 0; i < num_of_pipes; i++) {
+                pipe(pipefd[i]);
+            }
+
+            for (int p = 0; p < num_of_pipes; p++) {
+                if (fork() == 0) { 
+                    if (p == 0) { /* first command in pipeline */
+                        close(STDOUT_FILENO); /* close stdout */
+                        dup2(pipefd[p][1], STDOUT_FILENO); /* redirect stdout to write end of first pipe */
+                        close(pipefd[p][0]); /* close read end of first pipe */
+                    } else if (pipes[p+1] == NULL) { /* last command in pipeline */
+                        close(STDIN_FILENO); /* close stdin */
+                        dup2(pipefd[p-1][0], STDIN_FILENO); /* redirect stdin to read end of previous pipe */
+                        close(pipefd[p-1][1]); /* close write end of previous pipe */
+                    } else { /* middle command in pipeline */
+                        close(STDIN_FILENO); /* close stdin */
+                        dup2(pipefd[p-1][0], STDIN_FILENO); /* redirect stdin to read end of previous pipe */
+                        close(pipefd[p-1][1]); /* close write end of previous pipe */
+                        close(STDOUT_FILENO); /* close stdout */
+                        dup2(pipefd[p][1], STDOUT_FILENO); /* redirect stdout to write end of current pipe */
+                        close(pipefd[p][0]); /* close read end of current pipe */
+                    }
+
+                    /* close all pipe file descriptors */
+                    for (int i = 0; i < num_of_pipes; i++) {
+                        close(pipefd[i][0]);
+                        close(pipefd[i][1]);
+                    }
+
+                    execvp(pipes[p][0], pipes[p]);
+                    // perror("execvp failed");
+                    // exit(EXIT_FAILURE);
+                    return status;
+                }
+            }
+
+            /* parent process */
+            for (int c = 0; c < num_of_pipes; c++) {
+                close(pipefd[c][0]); /* close read end of pipe */
+                close(pipefd[c][1]); /* close write end of pipe */
+            }
+
+            for (int k = 0; k < num_of_pipes; k++) {
+                wait(&status); /* wait for child processes to exit */
             }
         }
 
-        int pipefd[num_of_pipes][2];
-
-        for (int i = 0; i < num_of_pipes; i++) {
-            pipe(pipefd[i]);
-        }
-
-        for (int p = 0; p < num_of_pipes; p++) {
-            if (fork() == 0) { 
-                if (p == 0) { /* first command in pipeline */
-                    close(STDOUT_FILENO); /* close stdout */
-                    dup2(pipefd[p][1], STDOUT_FILENO); /* redirect stdout to write end of first pipe */
-                    close(pipefd[p][0]); /* close read end of first pipe */
-                } else if (pipes[p+1] == NULL) { /* last command in pipeline */
-                    close(STDIN_FILENO); /* close stdin */
-                    dup2(pipefd[p-1][0], STDIN_FILENO); /* redirect stdin to read end of previous pipe */
-                    close(pipefd[p-1][1]); /* close write end of previous pipe */
-                } else { /* middle command in pipeline */
-                    close(STDIN_FILENO); /* close stdin */
-                    dup2(pipefd[p-1][0], STDIN_FILENO); /* redirect stdin to read end of previous pipe */
-                    close(pipefd[p-1][1]); /* close write end of previous pipe */
-                    close(STDOUT_FILENO); /* close stdout */
-                    dup2(pipefd[p][1], STDOUT_FILENO); /* redirect stdout to write end of current pipe */
-                    close(pipefd[p][0]); /* close read end of current pipe */
-                }
-
-                /* close all pipe file descriptors */
-                for (int i = 0; i < num_of_pipes; i++) {
-                    close(pipefd[i][0]);
-                    close(pipefd[i][1]);
-                }
-
-                execvp(pipes[p][0], pipes[p]);
-                perror("execvp failed");
-                exit(EXIT_FAILURE);
-            }
-        }
-
-        /* parent process */
-        for (int c = 0; c < num_of_pipes; c++) {
-            close(pipefd[c][0]); /* close read end of pipe */
-            close(pipefd[c][1]); /* close write end of pipe */
-        }
-
-        for (int k = 0; k < num_of_pipes; k++) {
-            wait(&status); /* wait for child processes to exit */
-        }
-        return status;
+        printf("internal cec3rvcrevcwvvr3cv fork exit with: %d\n", status);
+        sprintf(status_str, "%d", status);
+        printf("status_str  exit with: %s\n", status_str);
+        write(piping[1], status_str, sizeof(status_str));
+        exit(status);
     } else {
         wait(&status);
+        read(piping[0], buffer, sizeof(buffer));
+        status = atoi(buffer);
         printf("I got sts: %d\n", status);
     }
 
@@ -344,6 +371,7 @@ int control_flow() {
         free(cond_commands);
         free(then_commands);
         free(else_commands);
+        exit(status);
     } else {
         wait(&status);
     }
