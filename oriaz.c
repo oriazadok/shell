@@ -10,6 +10,10 @@
 #include "history.h"
 #include "myshell.h"
 
+#define RE_OUT 1
+#define RE_ERR 2
+#define RE_APPEND 11
+
 #define UP_ARROW_KEY "\033[A"
 #define DOWN_ARROW_KEY "\033[B"
 #define LINE_UP "\033[1A"
@@ -19,13 +23,7 @@
 char prompt[1024] = "hello: ";
 int status;
 
-/*
-1. fix bug of quit in case of control flow and ordinary pipes
-    by understanding the diff between return exit and _exit
-2. fill the rest of the assignment 
-*/
-
-/* help handle_arrows print properly */
+/* help handle_arrows to print properly */
 int print_hc(char* str1, char* str2) {
     printf(LINE_UP);
     printf(DELETE_LINE);
@@ -141,6 +139,42 @@ char ***parser(char* command, int* num_of_pipes) {
 /* execute the parsed command */
 int exec(char*** pipes, int num_of_pipes) {
 
+    char* outfile;
+    int fd, redirect, errfd, amper;
+
+    int n = 0;
+    while (pipes[num_of_pipes - 1][n] != NULL) {
+        n++;
+    }
+    size_t argc = n;
+
+
+    /* Does command line end with & */ 
+    if (! strcmp(pipes[num_of_pipes - 1][argc - 1], "&")) {
+        amper = 1;
+        pipes[num_of_pipes - 1][argc - 1] = NULL;
+    }
+    else {
+        amper = 0; 
+    }
+
+    if (argc > 1 && ! strcmp(pipes[num_of_pipes - 1][argc - 2], ">")) {
+        redirect = RE_OUT;
+        pipes[num_of_pipes - 1][argc - 2] = NULL;
+        outfile = pipes[num_of_pipes - 1][argc - 1];
+    } else if (argc > 1 && ! strcmp(pipes[num_of_pipes - 1][argc - 2], "2>")) {
+        redirect = RE_ERR;
+        pipes[num_of_pipes - 1][argc - 2] = NULL;
+        outfile = pipes[num_of_pipes - 1][argc - 1];
+    } else if (argc > 1 && ! strcmp(pipes[num_of_pipes - 1][argc - 2], ">>")) {
+        redirect = RE_APPEND;
+        pipes[num_of_pipes - 1][argc - 2] = NULL;
+        outfile = pipes[num_of_pipes - 1][argc - 1];
+    } else {
+        redirect = 0; 
+    }
+
+
     int piping[2];
     pipe(piping);
 
@@ -148,19 +182,30 @@ int exec(char*** pipes, int num_of_pipes) {
 
     if (fork() == 0) { 
 
-        char status_str[20];
-
         if(num_of_pipes == 1) {
             if (fork() == 0) { 
+                if (redirect == RE_OUT) {
+                    fd = creat(outfile, 0660); 
+                    close (STDOUT_FILENO) ; 
+                    dup(fd); 
+                    close(fd); 
+                    /* stdout is now redirected */
+                } else if (redirect == RE_ERR) {
+                    errfd = creat(outfile, 0660); 
+                    close (STDERR_FILENO) ; 
+                    dup(errfd); 
+                    close(errfd); 
+                    /* stderr is now redirected */
+                } else if (redirect == RE_APPEND) {
+                    fd = open(outfile, O_CREAT | O_APPEND | O_RDWR, 0660); 
+                    close (STDOUT_FILENO) ; 
+                    dup(fd); 
+                    close(fd); 
+                    /* stdout is now redirected */
+                } 
                 execvp(pipes[0][0], pipes[0]);
             } else {
                 wait(&status);
-                printf("internal fork exit with: %d\n", status);
-
-                // char status_str[20];
-                // sprintf(status_str, "%d", status);
-                // write(piping[1], status_str, sizeof(status_str));
-                // exit(status);
             }
         } else {
 
@@ -172,11 +217,32 @@ int exec(char*** pipes, int num_of_pipes) {
 
             for (int p = 0; p < num_of_pipes; p++) {
                 if (fork() == 0) { 
+
+
                     if (p == 0) { /* first command in pipeline */
                         close(STDOUT_FILENO); /* close stdout */
                         dup2(pipefd[p][1], STDOUT_FILENO); /* redirect stdout to write end of first pipe */
                         close(pipefd[p][0]); /* close read end of first pipe */
                     } else if (pipes[p+1] == NULL) { /* last command in pipeline */
+                        if (redirect == RE_OUT) {
+                            fd = creat(outfile, 0660); 
+                            close (STDOUT_FILENO) ; 
+                            dup(fd); 
+                            close(fd); 
+                            /* stdout is now redirected */
+                        } else if (redirect == RE_ERR) {
+                            errfd = creat(outfile, 0660); 
+                            close (STDERR_FILENO) ; 
+                            dup(errfd); 
+                            close(errfd); 
+                            /* stderr is now redirected */
+                        } else if (redirect == RE_APPEND) {
+                            fd = open(outfile, O_CREAT | O_APPEND | O_RDWR, 0660); 
+                            close (STDOUT_FILENO) ; 
+                            dup(fd); 
+                            close(fd); 
+                            /* stdout is now redirected */
+                        } 
                         close(STDIN_FILENO); /* close stdin */
                         dup2(pipefd[p-1][0], STDIN_FILENO); /* redirect stdin to read end of previous pipe */
                         close(pipefd[p-1][1]); /* close write end of previous pipe */
@@ -196,8 +262,6 @@ int exec(char*** pipes, int num_of_pipes) {
                     }
 
                     execvp(pipes[p][0], pipes[p]);
-                    // perror("execvp failed");
-                    // exit(EXIT_FAILURE);
                     return status;
                 }
             }
@@ -213,16 +277,16 @@ int exec(char*** pipes, int num_of_pipes) {
             }
         }
 
-        printf("internal cec3rvcrevcwvvr3cv fork exit with: %d\n", status);
+        char status_str[20];
         sprintf(status_str, "%d", status);
-        printf("status_str  exit with: %s\n", status_str);
         write(piping[1], status_str, sizeof(status_str));
         exit(status);
     } else {
-        wait(&status);
-        read(piping[0], buffer, sizeof(buffer));
-        status = atoi(buffer);
-        printf("I got sts: %d\n", status);
+        if(amper == 0) {
+            wait(&status);
+            read(piping[0], buffer, sizeof(buffer));
+            status = atoi(buffer);
+        }
     }
 
     return status;
@@ -257,7 +321,7 @@ int control_flow() {
         condition[strlen(condition) - 1] = '\0';
         if( (! strcmp(condition, "then")) || (! strcmp(condition, "else")) || (! strcmp(condition, "fi")) ) {
             printf("bash: syntax error near unexpected token `%s'\n", condition);
-            exit(0);
+            exit(2);
         }
         int is_then = strcmp(condition, "then");
 
@@ -274,7 +338,7 @@ int control_flow() {
             condition[strlen(condition) - 1] = '\0';
             if( (! strcmp(condition, "else")) || (! strcmp(condition, "fi")) ) {
                 printf("bash: syntax error near unexpected token `%s'\n", condition);
-                exit(0);
+                exit(2);
             }
             is_then = strcmp(condition, "then");
         }
@@ -286,7 +350,7 @@ int control_flow() {
         cmd[strlen(cmd) - 1] = '\0';
         if( (! strcmp(cmd, "else")) || (! strcmp(cmd, "fi")) ) {
             printf("bash: syntax error near unexpected token `%s'\n", cmd);
-            exit(0);
+            exit(2);
         }
         int is_else = strcmp(cmd, "else");
 
@@ -392,9 +456,9 @@ void free_pipes(char*** pipes) {
 
 int main() {
 
-
-    char command[1024];
+    char command[1024], read[1024];;
     char*** pipes;
+    
     History history;
     history_init(&history);
 
@@ -420,9 +484,74 @@ int main() {
         /* empty command */
         if( ! strcmp(command, EMPTY_STRING) ) { continue; }
 
+        /* last command */ 
+        if(! strcmp(command, "!!")) {
+            strcpy(command, history.history[history.history_counter - 1]);
+            printf("last command: %s\n", command);
+        }
+
         /* add command to history */
         history_add(&history, command);
 
+        int num_of_pipes = 0;
+        pipes = parser(command, &num_of_pipes);
+
+        /* change the prompt */ 
+        if(! strcmp(pipes[0][0], "prompt")) {
+            strcpy(prompt, pipes[0][2]);
+            strcat(prompt, " ");
+            continue;
+        }
+
+        /* add vars */ 
+        if(pipes[0][0][0] =='$') {
+            if(! pipes[0][1] || ! pipes[0][2]) {
+                continue;
+            }
+            if(! strcmp(pipes[0][1], "=")) {
+                if ( setenv(pipes[0][0] + 1, pipes[0][2], 1));
+                continue;
+            }
+        }
+
+        /* myread command */
+        if(!strcmp(pipes[0][0], "read")) {
+            if ( pipes[0][1] ){
+                fgets(read, 1024, stdin);
+                read[strlen(read) - 1] = '\0';
+                if (setenv(pipes[0][1], read, 1));
+                continue;
+            }
+        }
+
+        /* change directory */ 
+        if( (pipes[0][0]) && (! strcmp(pipes[0][0], "cd"))) {
+            chdir(pipes[0][1]);
+            continue;
+        }
+
+        /* echo command */ 
+        if(! strcmp(pipes[0][0], "echo")) {
+
+            /* echo the last returned status */ 
+            if( (pipes[0][1]) && (! strcmp(pipes[0][1], "$?"))) {
+                printf("%d\n", status);
+                continue;
+            }
+            int i = 1;
+            char *env_var;
+            while(pipes[0][i]) {
+                if(pipes[0][i][0] =='$') {
+                    if( (env_var = getenv(pipes[0][i] + 1)) ) {
+                        strcpy(pipes[0][i], env_var);
+                    }
+                }
+                printf("%s ", pipes[0][i]);
+                i++;
+            }
+            printf("\n");
+            continue;
+        }
         
         /* quit command */ 
         if(! strncmp(command, "quit", 4)) { break; }
@@ -430,15 +559,13 @@ int main() {
         /* handle control flow */
         if( ! strncmp(command, "if", 2) ) {
             control_flow();
-        } else {
-            int num_of_pipes = 0;
-            pipes = parser(command, &num_of_pipes);
-
-            exec(pipes, num_of_pipes);
-            // printf("ssss: %d\n", status);
-            free_pipes(pipes);
-            free(pipes);
+            continue;
         }
+
+        exec(pipes, num_of_pipes);
+
+        free_pipes(pipes);
+        free(pipes);
     }
 
     return 0;
