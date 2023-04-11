@@ -1,19 +1,19 @@
 CC = gcc
 CFLAGS = -g -Wall
 
-all: oriaz
+all: myshell
 
 run: 
-	./oriaz
+	./myshell
 
 v:
-	valgrind ./oriaz
+	valgrind ./myshell
 
-oriaz: history.o oriaz.o
-	$(CC) $(CFLAGS) -o oriaz oriaz.o history.o
+myshell: history.o myshell.o
+	$(CC) $(CFLAGS) -o myshell myshell.o history.o
 
-oriaz.o: oriaz.c myshell.h history.h
-	$(CC) $(CFLAGS) -c oriaz.c
+myshell.o: myshell.c myshell.h history.h
+	$(CC) $(CFLAGS) -c myshell.c
 
 history.o: history.c history.h
 	$(CC) $(CFLAGS) -c history.c
@@ -21,4 +21,4 @@ history.o: history.c history.h
 .PHONY: all clean
 
 clean:
-	rm -f *.o oriaz mylog log
+	rm -f *.o myshell
