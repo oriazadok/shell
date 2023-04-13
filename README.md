@@ -2,7 +2,8 @@
 ## Oria Zadok & Yohanan Kling
 
 ## assumptions:
-##  1. we get the control flow (if else) like the shell so when navigating history we show the if command
+##  1. in case of reaching to control flow (if else) when navigating in history we decided to show the just the if part
+##      because its meaningless to start the command with fi
 
 ## script 1
 ### ./myshell
@@ -85,13 +86,13 @@
 ### /home/oriaz/Desktop/task_shell/newdir
 ### hello: touch file1
 ### hello: if
-### > ls | grep file1
-### > then
-### > echo file was created
-### > ls
-### > else
-### > echo file1 not found
-### > fi
+### ls | grep file1
+### then
+### echo file was created
+### ls
+### else
+### echo file1 not found
+### fi
 ### file1
 ### file was created
 

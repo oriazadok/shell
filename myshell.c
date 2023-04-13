@@ -349,7 +349,12 @@ void free_cte(char** pipes) {
 }
 
 /* handle the control flow (if else) */
-int control_flow() {
+int control_flow(char* command) {
+
+    int tc = 0, ec = 0;
+    char** cond_commands = NULL;
+    char** then_commands = NULL;
+    char** else_commands = NULL;
 
     if( fork() == 0 ) {
         // Return to default behavior
@@ -365,50 +370,29 @@ int control_flow() {
 
 
         /* input of the control flow */
-        int cc = 0, tc = 0;
-        int ec = 0;
-        char** cond_commands = NULL;
-        char** then_commands = NULL;
-        char** else_commands = NULL;
 
-        printf("> ");
-        fflush(stdout);
-        char condition[1024];
-        fgets(condition, 1024, stdin);
-        condition[strlen(condition) - 1] = '\0';
-        if( (! strcmp(condition, "then")) || (! strcmp(condition, "else")) || (! strcmp(condition, "fi")) ) {
-            printf("bash: syntax error near unexpected token `%s'\n", condition);
-            exit(2);
-        }
-        int is_then = strcmp(condition, "then");
+        cond_commands = (char**)realloc(cond_commands, ( 1 ) * sizeof(char*));
+        char* cond = (char*)malloc(strlen(command));
+        strcpy(cond, command);
+        cond_commands[0] = cond;
 
-        while( is_then ) {
-            cond_commands = (char**)realloc(cond_commands, (cc + 1) * sizeof(char*));
-            char* cond = (char*)malloc(strlen(condition));
-            strcpy(cond, condition);
-            cond_commands[cc] = cond;
-            cc++;
+        if( ! strncmp(command, "then", 4) ) { printf("bash: syntax error near unexpected token `then'\n"); exit(2); }
+        if( ! strncmp(command, "else", 4) ) { printf("bash: syntax error near unexpected token `else'\n"); exit(2); }
+        if( ! strncmp(command, "fi", 2) ) { printf("bash: syntax error near unexpected token `fi'\n"); exit(2); }
+            
+        // expecting "then" token
+        char then_token[1024];
+        fgets(then_token, 1024, stdin);
+        then_token[strlen(then_token) - 1] = '\0';
+        if( strcmp(then_token, "then") ) { printf("bash: syntax error expected token `then'\n"); exit(2); }
 
-            printf("> ");
-            fflush(stdout);
-            fgets(condition, 1024, stdin);
-            condition[strlen(condition) - 1] = '\0';
-            if( (! strcmp(condition, "else")) || (! strcmp(condition, "fi")) ) {
-                printf("bash: syntax error near unexpected token `%s'\n", condition);
-                exit(2);
-            }
-            is_then = strcmp(condition, "then");
-        }
 
-        printf("> ");
-        fflush(stdout);
         char cmd[1024];
         fgets(cmd, 1024, stdin);
         cmd[strlen(cmd) - 1] = '\0';
-        if( (! strcmp(cmd, "else")) || (! strcmp(cmd, "fi")) ) {
-            printf("bash: syntax error near unexpected token `%s'\n", cmd);
-            exit(2);
-        }
+        if( ! strncmp(cmd, "else", 4) ) { printf("bash: syntax error near unexpected token `else'\n"); exit(2); }
+        if( ! strncmp(cmd, "fi", 2) ) { printf("bash: syntax error near unexpected token `fi'\n"); exit(2); }
+
         int is_else = strcmp(cmd, "else");
 
         while( is_else ) {
@@ -418,24 +402,19 @@ int control_flow() {
             then_commands[tc] = then;
             tc++;
 
-            printf("> ");
-            fflush(stdout);
             fgets(cmd, 1024, stdin);
             cmd[strlen(cmd) - 1] = '\0';
-            is_else = strcmp(cmd, "else");
+            is_else = strncmp(cmd, "else", 4);
+            if( ! strncmp(cmd, "fi", 2) ) { printf("bash: syntax error near unexpected token `fi'\n"); exit(2); }
+
         }
 
-        printf("> ");
-        fflush(stdout);
         char cmd2[1024];
         fgets(cmd2, 1024, stdin);
         cmd2[strlen(cmd2) - 1] = '\0';
-        int is_fi = strcmp(cmd2, "fi");
+        if( ! strncmp(cmd, "fi", 2) ) { printf("bash: syntax error near unexpected token `fi'\n"); exit(2); }
 
-        if( ! is_fi ) { 
-            printf("bash: syntax error near unexpected token `%s'\n", cmd2);
-            exit(2); 
-        }
+        int is_fi = strcmp(cmd2, "fi");
 
         while( is_fi ) {
             else_commands = (char**)realloc(else_commands, (ec + 1) * sizeof(char*));
@@ -444,8 +423,6 @@ int control_flow() {
             else_commands[ec] = _else;
             ec++;
 
-            printf("> ");
-            fflush(stdout);
             fgets(cmd2, 1024, stdin);
             cmd2[strlen(cmd2) - 1] = '\0';
             is_fi = strcmp(cmd2, "fi");
@@ -466,7 +443,7 @@ int control_flow() {
         if( ! status ) {
             for(int i = 0; i < tc; i++) {
                 num_of_pipes = 0;
-                pipes = parser(then_commands[0], &num_of_pipes);
+                pipes = parser(then_commands[i], &num_of_pipes);
                 exec(pipes, num_of_pipes);
                 free_pipes(pipes);
                 free(pipes);
@@ -492,6 +469,7 @@ int control_flow() {
         free(cond_commands);
         free(then_commands);
         free(else_commands);
+
         exit(status);
     } else {
         wait(&status);
@@ -564,6 +542,12 @@ int main() {
         /* add command to history */
         history_add(&history, command);
 
+        /* handle control flow */
+        if( ! strncmp(command, "if", 2) ) {
+            control_flow(command + 3);
+            continue;
+        }
+
         int num_of_pipes = 0;
         pipes = parser(command, &num_of_pipes);
 
@@ -626,12 +610,6 @@ int main() {
         
         /* quit command */ 
         if(! strncmp(command, "quit", 4)) { break; }
-
-        /* handle control flow */
-        if( ! strncmp(command, "if", 2) ) {
-            control_flow();
-            continue;
-        }
 
         exec(pipes, num_of_pipes);
 
