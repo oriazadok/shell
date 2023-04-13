@@ -12,6 +12,7 @@
 
 #define RE_OUT 1
 #define RE_ERR 2
+#define RE_IN 3
 #define RE_APPEND 11
 
 #define UP_ARROW_KEY "\033[A"
@@ -158,7 +159,11 @@ int exec(char*** pipes, int num_of_pipes) {
         amper = 0; 
     }
 
-    if (argc > 1 && ! strcmp(pipes[num_of_pipes - 1][argc - 2], ">")) {
+    if (argc > 1 && ! strcmp(pipes[num_of_pipes - 1][argc - 2], "<")) {
+        redirect = RE_IN;
+        pipes[num_of_pipes - 1][argc - 2] = NULL;
+        outfile = pipes[num_of_pipes - 1][argc - 1];
+    } else if (argc > 1 && ! strcmp(pipes[num_of_pipes - 1][argc - 2], ">")) {
         redirect = RE_OUT;
         pipes[num_of_pipes - 1][argc - 2] = NULL;
         outfile = pipes[num_of_pipes - 1][argc - 1];
@@ -207,22 +212,29 @@ int exec(char*** pipes, int num_of_pipes) {
                     exit(1);
                 }
                 
-                if (redirect == RE_OUT) {
+                /* stdin is now redirected */
+                if (redirect == RE_IN) {
+                    fd = open(outfile, O_RDONLY); 
+                    close (STDIN_FILENO); 
+                    dup2(fd, STDIN_FILENO);
+                    close(fd); 
+                    /* stdout is now redirected */
+                } else if (redirect == RE_OUT) {
                     fd = creat(outfile, 0660); 
                     close (STDOUT_FILENO) ; 
-                    dup(fd); 
+                    dup2(fd, STDOUT_FILENO); 
                     close(fd); 
                     /* stdout is now redirected */
                 } else if (redirect == RE_ERR) {
                     errfd = creat(outfile, 0660); 
                     close (STDERR_FILENO) ; 
-                    dup(errfd); 
+                    dup2(errfd, STDERR_FILENO); 
                     close(errfd); 
                     /* stderr is now redirected */
                 } else if (redirect == RE_APPEND) {
                     fd = open(outfile, O_CREAT | O_APPEND | O_RDWR, 0660); 
                     close (STDOUT_FILENO) ; 
-                    dup(fd); 
+                    dup2(fd, STDOUT_FILENO); 
                     close(fd); 
                     /* stdout is now redirected */
                 } 
@@ -547,7 +559,6 @@ int main() {
         /* last command */ 
         if(! strcmp(command, "!!")) {
             strcpy(command, history.history[history.history_counter - 1]);
-            printf("last command: %s\n", command);
         }
 
         /* add command to history */

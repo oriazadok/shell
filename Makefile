@@ -6,9 +6,6 @@ all: myshell
 run: 
 	./myshell
 
-v:
-	valgrind ./myshell
-
 myshell: history.o myshell.o
 	$(CC) $(CFLAGS) -o myshell myshell.o history.o
 
