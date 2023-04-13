@@ -4,8 +4,10 @@
 ## assumptions:
 ##  1. in case of reaching to control flow (if else) when navigating in history we decided to show the just the if part
 ##      because its meaningless to start the command with fi
+## 2. ‫‪echo‬‬ ‫?‪$‬‬ print the full status not only 0 2 etc
+## 3. forked process are getting default signal behavior of Ctrl^c
 
-## script 1
+## script 1: tasks examples 100% work
 ### ./myshell
 ### hello: date >> myfile
 ### hello: cat myfile
@@ -27,12 +29,12 @@
 ### hi: !!
 ### file1  file2  file3
 ### hi: echo abc xyz
-### abc xyz 
+### abc xyz
 ### hi: ls
 ### file1  file2  file3
 ### hi: echo $?
 ### 0
-### hi: ls no_such_file    
+### hi: ls no_such_file
 ### ls: cannot access 'no_such_file': No such file or directory
 ### hi: echo $?
 ### 512
@@ -78,7 +80,7 @@
 ### hi: quit
 ###     
 
-## script 2
+## script 2: control flow
 ### ./myshell
 ### hello: mkdir newdir
 ### hello: cd newdir
@@ -95,18 +97,38 @@
 ### fi
 ### file1
 ### file was created
+### file1
+### hello: quit
 
-## script 3
+## script 3: history
 ### ./myshell
-### hello: echo 1  
-### 1 
+### hello: echo 1
+### 1
 ### hello: echo 2
-### 2 
+### 2
 ### hello: echo 3
-### 3 
+### 3
 ### hello: echo 4
 ### 4
 ### hello: ^[[A
 ### hello: echo 4^[[A
 ### hello: echo 3
 ### 3 
+### hello: quit
+
+## script 4: read and vars
+### ./myshell
+### hello: $person = tsadok
+### hello: echo person
+### person
+### hello: echo $person
+### tsadok
+### hello: read name
+### yohanan
+### hello: echo $name
+### yohanan
+### hello: read person
+### hacker
+### hello: echo $person
+### hacker
+### hello: quit
