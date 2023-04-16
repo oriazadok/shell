@@ -4,8 +4,7 @@
 ## assumptions:
 ##  1. in case of reaching to control flow (if else) when navigating in history we decided to show the just the if part
 ##      because its meaningless to start the command with fi
-## 2. ‫‪echo‬‬ ‫?‪$‬‬ print the full status not only 0 2 etc
-## 3. forked process are getting default signal behavior of Ctrl^c
+## 2. forked process are getting default signal behavior of Ctrl^c
 
 ## script 1: tasks examples 100% work
 ### ./myshell
